@@ -5,170 +5,127 @@ This project demonstrates how to set up a self-hosted Kubernetes cluster from sc
 The goal is to understand Kubernetes internals and cluster management without relying on managed services. By the end, you’ll have a fully functional cluster capable of running containerized applications, complete with networking between nodes and a test deployment.
 
 ---
+🚀 Kubernetes Cluster with kubeadm (CentOS)
+Step 0: Prerequisites
 
-## Step 0: Prerequisites
-- 2 or more Linux servers (VMs or bare-metal)  
-- 1 Master (Control Plane)  
-- 1 Worker  
-- At least 2 CPUs & 2GB RAM per node  
-- Root or sudo access  
-- Nodes can communicate over private IPs  
-- Basic Linux/Docker knowledge  
+2+ Linux servers (VMs or bare-metal)
 
----
+1 Master (Control Plane) + 1 Worker
 
-## Step 1: Prepare the Nodes (Run on **all nodes**)
+At least 2 CPUs & 2GB RAM per node
 
-### Update packages
-```bash
+Root or sudo access
+
+Nodes must communicate via private IPs
+
+Basic Linux/Docker knowledge
+
+Step 1: Prepare the Nodes (Run on all nodes)
+Update system
 sudo yum update -y
+
 Disable swap
-bash
-Copy code
 sudo swapoff -a
-bash
-Copy code
 sudo sed -i '/ swap / s/^/#/' /etc/fstab
+
 Load required kernel modules
-bash
-Copy code
 cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
 overlay
 br_netfilter
 EOF
-bash
-Copy code
+
 sudo modprobe overlay
-bash
-Copy code
 sudo modprobe br_netfilter
+
 Configure sysctl
-bash
-Copy code
 cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
 net.bridge.bridge-nf-call-iptables  = 1
 net.ipv4.ip_forward                 = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 EOF
-bash
-Copy code
-sudo sysctl --system
-Step 2: Install Container Runtime (containerd)
-Install containerd
-bash
-Copy code
-sudo yum install -y containerd
-Generate default config
-bash
-Copy code
-sudo mkdir -p /etc/containerd
-bash
-Copy code
-containerd config default | sudo tee /etc/containerd/config.toml
-Use systemd cgroup driver
-bash
-Copy code
-sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-Restart and enable containerd
-bash
-Copy code
-sudo systemctl restart containerd
-bash
-Copy code
-sudo systemctl enable containerd
-Step 3: Install Kubernetes Tools
-Install yum-utils
-bash
-Copy code
-sudo yum install -y yum-utils
-Add Kubernetes repo
-bash
-Copy code
-sudo yum-config-manager --add-repo https://pkgs.k8s.io/core:/stable:/v1.30/rpm/kubernetes.repo
-Install kubelet, kubeadm, kubectl
-bash
-Copy code
-sudo yum install -y kubelet kubeadm kubectl
-Enable kubelet
-bash
-Copy code
-sudo systemctl enable --now kubelet
-Prevent auto-updates
-bash
-Copy code
-sudo yum-mark hold kubelet kubeadm kubectl
-Step 4: Initialize the Control Plane (Master Node only)
-Initialize cluster
-bash
-Copy code
-sudo kubeadm init --pod-network-cidr=10.244.0.0/16
-⚠️ Save the kubeadm join command printed at the end — you’ll need it for worker nodes.
 
-Configure kubectl for your user
-bash
-Copy code
+sudo sysctl --system
+
+Step 2: Install Container Runtime (containerd)
+sudo yum install -y containerd
+
+sudo mkdir -p /etc/containerd
+
+containerd config default | sudo tee /etc/containerd/config.toml
+
+sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+
+sudo systemctl restart containerd
+sudo systemctl enable containerd
+
+Step 3: Install Kubernetes Tools
+sudo yum install -y yum-utils
+
+sudo yum-config-manager --add-repo https://pkgs.k8s.io/core:/stable:/v1.30/rpm/kubernetes.repo
+
+sudo yum install -y kubelet kubeadm kubectl
+
+sudo systemctl enable --now kubelet
+
+sudo yum-mark hold kubelet kubeadm kubectl
+
+Step 4: Initialize the Control Plane (Master only)
+sudo kubeadm init --pod-network-cidr=10.244.0.0/16
+
+
+⚠️ Save the kubeadm join ... command shown at the end — you’ll need it on the worker nodes.
+
+Configure kubectl:
+
 mkdir -p $HOME/.kube
-bash
-Copy code
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-bash
-Copy code
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
-Check nodes
-bash
-Copy code
+
+
+Check nodes:
+
 kubectl get nodes
-(Your master will be NotReady until networking is installed.)
 
 Step 5: Install CNI Network Plugin (Flannel)
-Apply Flannel
-bash
-Copy code
 kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
-Verify
-bash
-Copy code
+
+
+Verify:
+
 kubectl get pods -n kube-system
-bash
-Copy code
 kubectl get nodes
-(Master should now be Ready.)
 
 Step 6: Join Worker Node(s)
-On each worker node, run the kubeadm join command you got in Step 4, for example:
 
-bash
-Copy code
+On each worker node (use the command copied from Step 4):
+
 sudo kubeadm join <MASTER_IP>:6443 --token <token> \
     --discovery-token-ca-cert-hash sha256:<hash>
-Verify from master
-bash
-Copy code
+
+
+Back on master, verify:
+
 kubectl get nodes
+
 Step 7: Test the Cluster
-Deploy Nginx
-bash
-Copy code
 kubectl create deployment nginx --image=nginx
-Expose service
-bash
-Copy code
+
 kubectl expose deployment nginx --port=80 --type=NodePort
-Check service
-bash
-Copy code
+
 kubectl get svc
-➡️ Access via <NodeIP>:<NodePort>
 
-Step 8: Next Steps / Notes
-✅ This setup is ideal for learning, testing, and demos.
 
+➡️ Access Nginx via http://<NodeIP>:<NodePort>
+
+Step 8: Next Steps
+
+✅ Great for labs, testing, and demos.
 For production:
 
-Consider HA master nodes
+Use multiple HA master nodes
 
-Setup monitoring & logging
+Add monitoring & logging
 
-Implement security hardening
+Apply security hardening
 
 Backup etcd regularly
