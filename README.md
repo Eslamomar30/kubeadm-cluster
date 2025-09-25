@@ -1,176 +1,163 @@
+# 🚀 Kubernetes Cluster Setup on CentOS with Kubeadm
 
-#  Kubeadm Cluster Setup (CentOS)
-
-##  Project Description
-This project demonstrates how to set up a self-hosted Kubernetes cluster from scratch using kubeadm on CentOS VMs.
-
-The goal is to learn Kubernetes internals and cluster management without relying on cloud-managed services.
-
-We’ll build a cluster with:
-- 1 Master (Control Plane)
-- 1 Worker Node
-
-By the end, you’ll have a fully functional Kubernetes cluster capable of running containerized applications, with networking between nodes and a test Nginx deployment.
+## 📌 Prerequisites
+* I used CentOS VMs
+1. 2 or more Linux servers (VMs or bare-metal).
+2. 1 Control plane (master) node, 1 or more Worker nodes.
+3. At least 2 CPUs and 2 GB RAM per node (for testing).
+4. Root or sudo access.
+5. Ensure all nodes can talk to each other via private IPs.
 
 ---
 
- Step 1: Prepare the Nodes
-
-Update system packages
+## ⚙️ Step 1: Prepare the Nodes (On all nodes)
 ```bash
+# Update packages:
 sudo yum update -y
-```
-Disable swap (Kubernetes requires swap to be off)
-```bash
+
+# Disable swap (Kubernetes does not support swap):
 sudo swapoff -a
 sudo sed -i '/ swap / s/^/#/' /etc/fstab
-```
-Load required kernel modules
-```bash
+
+# Load kernel modules:
 cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
 overlay
 br_netfilter
 EOF
-```
-```bash
+
 sudo modprobe overlay
 sudo modprobe br_netfilter
-```
 
-Configure sysctl for networking
-```bash
+# Set sysctl params:
 cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
 net.bridge.bridge-nf-call-iptables  = 1
 net.ipv4.ip_forward                 = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 EOF
-```
-```bash
+
 sudo sysctl --system
 ```
+
 ---
 
- Step 2: Install Container Runtime (containerd)
+## 🐳 Step 2: Install Container Runtime
+```bash
+sudo yum install -y yum-utils device-mapper-persistent-data lvm2
 
-Install containerd
-```bash
-sudo yum install -y containerd
-```
-Generate default config
-```bash
+# Add Docker repo (includes containerd)
+sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+# Install containerd
+sudo yum install -y containerd.io
+
+# Configure containerd
 sudo mkdir -p /etc/containerd
 containerd config default | sudo tee /etc/containerd/config.toml
-```
-Set systemd as cgroup driver
-```bash
+
+# Set Cgroup driver = systemd
 sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-```
-Restart & enable containerd
-```bash
+
 sudo systemctl restart containerd
 sudo systemctl enable containerd
 ```
+
 ---
 
- Step 3: Install Kubernetes Tools
+## ⬇️ Step 3: Install Kubernetes Tools
+```bash
+cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/
+enabled=1
+gpgcheck=1
+gpgkey=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
+EOF
 
-Install dependencies
-```bash
-sudo yum install -y yum-utils
-```
-Add Kubernetes repo
-```bash
-sudo yum-config-manager --add-repo https://pkgs.k8s.io/core:/stable:/v1.30/rpm/kubernetes.repo
-```
-Install tools
-```bash
 sudo yum install -y kubelet kubeadm kubectl
+sudo systemctl enable kubelet
 ```
-Enable kubelet service
-```bash
-sudo systemctl enable --now kubelet
-```
-Prevent auto-updates
-```bash
-sudo yum-mark hold kubelet kubeadm kubectl
-```
+
 ---
 
- Step 4: Initialize the Control Plane (Master Node Only)
-
-Initialize cluster
+## 🖥️ Step 4: Initialize the Control Plane (Master Node)
 ```bash
 sudo kubeadm init --pod-network-cidr=10.244.0.0/16
 ```
- Save the kubeadm join command printed at the end — you’ll need it for workers.
 
-Configure kubectl for normal user
+The `--pod-network-cidr` specifies the subnet for Pods. (Needed by most CNI plugins like Flannel.)
+
+After a few minutes, you should see a success message with a `kubeadm join` command. Save it — you’ll use it on workers.  
+Example:
+```bash
+kubeadm join 192.168.182.131:6443 --token <your-token>   --discovery-token-ca-cert-hash sha256:<your-hash>
+```
+
+### Configure kubectl for your user
 ```bash
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```
-Verify master status
+
+Verify:
 ```bash
 kubectl get nodes
 ```
+You’ll see the master node, but it will be in **NotReady** state until networking is installed.
+
 ---
 
- Step 5: Install CNI Network Plugin (Flannel)
+## 🌐 Step 5: Install a Network Plugin (CNI)
+Install **Flannel**:
 ```bash
-Install Flannel
 kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
 ```
-Verify networking
+
+Stop firewall if there is a problem:
+```bash
+sudo systemctl stop firewalld
+sudo systemctl disable firewalld
+```
+
+Wait a few seconds, then check:
 ```bash
 kubectl get pods -n kube-system
 kubectl get nodes
 ```
----
 
- Step 6: Join Worker Node(s)
-
-Run the kubeadm join command (from Step 4) on each worker:
-sudo kubeadm join <MASTER_IP>:6443 --token <token> \
-    --discovery-token-ca-cert-hash sha256:<hash>
-
-Back on master, check node status
-```bash
-kubectl get nodes
-```
----
-
- Step 7: Test the Cluster
-
-Deploy Nginx
-```bash
-kubectl create deployment nginx --image=nginx
-```
-Expose Nginx as a service
-```bash
-kubectl expose deployment nginx --port=80 --type=NodePort
-```
-Get service info
-```bash
-kubectl get svc
-```
- Access Nginx via:
-http://<NodeIP>:<NodePort>
+Your control plane should now be **Ready**.
 
 ---
 
- Step 8: Next Steps (For Production)
+## 👷 Step 6: Join Worker Nodes
+On each worker node, use the join command from step 4. Example:
+```bash
+kubeadm join 192.168.182.131:6443 --token <your-token>   --discovery-token-ca-cert-hash sha256:<your-hash>
+```
 
-Add multiple master nodes (High Availability)
-- Configure more than one control plane node.
+---
 
-Configure monitoring & logging
-- Use Prometheus + Grafana for monitoring.
-- Use EFK stack (Elasticsearch, Fluentd, Kibana) for logging.
+## 📤 Upload this Guide to GitHub
 
-Apply RBAC & security policies
-- Define roles and permissions.
-- Use PodSecurityPolicies or OPA Gatekeeper.
+### 1️⃣ Initialize Git
+```bash
+git init
+```
 
-Setup backup strategy for etcd
-- Regularly back up etcd database for disaster recovery.
+### 2️⃣ Add README.md
+```bash
+git add README.md
+git commit -m "Kubernetes setup guide with kubeadm on CentOS"
+```
+
+### 3️⃣ Connect to GitHub
+```bash
+git branch -M main
+git remote add origin https://github.com/<YourUsername>/<YourRepoName>.git
+```
+
+### 4️⃣ Push to GitHub
+```bash
+git push -u origin main
+```
