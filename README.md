@@ -1,7 +1,7 @@
 
-# 🚀 Kubeadm Cluster Setup (CentOS)
+#  Kubeadm Cluster Setup (CentOS)
 
-## 📌 Project Description
+##  Project Description
 This project demonstrates how to set up a self-hosted Kubernetes cluster from scratch using kubeadm on CentOS VMs.
 
 The goal is to learn Kubernetes internals and cluster management without relying on cloud-managed services.
@@ -14,7 +14,7 @@ By the end, you’ll have a fully functional Kubernetes cluster capable of runni
 
 ---
 
-🛠️ Step 1: Prepare the Nodes
+ Step 1: Prepare the Nodes
 
 Update system packages
 ```bash
@@ -50,7 +50,7 @@ sudo sysctl --system
 ```
 ---
 
-🛠️ Step 2: Install Container Runtime (containerd)
+ Step 2: Install Container Runtime (containerd)
 
 Install containerd
 ```bash
@@ -72,7 +72,7 @@ sudo systemctl enable containerd
 ```
 ---
 
-🛠️ Step 3: Install Kubernetes Tools
+ Step 3: Install Kubernetes Tools
 
 Install dependencies
 ```bash
@@ -96,13 +96,13 @@ sudo yum-mark hold kubelet kubeadm kubectl
 ```
 ---
 
-🛠️ Step 4: Initialize the Control Plane (Master Node Only)
+ Step 4: Initialize the Control Plane (Master Node Only)
 
 Initialize cluster
 ```bash
 sudo kubeadm init --pod-network-cidr=10.244.0.0/16
 ```
-⚠️ Save the kubeadm join command printed at the end — you’ll need it for workers.
+ Save the kubeadm join command printed at the end — you’ll need it for workers.
 
 Configure kubectl for normal user
 ```bash
@@ -116,7 +116,7 @@ kubectl get nodes
 ```
 ---
 
-🛠️ Step 5: Install CNI Network Plugin (Flannel)
+ Step 5: Install CNI Network Plugin (Flannel)
 ```bash
 Install Flannel
 kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
@@ -128,7 +128,7 @@ kubectl get nodes
 ```
 ---
 
-🛠️ Step 6: Join Worker Node(s)
+ Step 6: Join Worker Node(s)
 
 Run the kubeadm join command (from Step 4) on each worker:
 sudo kubeadm join <MASTER_IP>:6443 --token <token> \
@@ -140,7 +140,7 @@ kubectl get nodes
 ```
 ---
 
-🛠️ Step 7: Test the Cluster
+ Step 7: Test the Cluster
 
 Deploy Nginx
 ```bash
@@ -154,12 +154,12 @@ Get service info
 ```bash
 kubectl get svc
 ```
-➡️ Access Nginx via:
+ Access Nginx via:
 http://<NodeIP>:<NodePort>
 
 ---
 
-✅ Step 8: Next Steps (For Production)
+ Step 8: Next Steps (For Production)
 
 Add multiple master nodes (High Availability)
 - Configure more than one control plane node.
