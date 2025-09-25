@@ -134,7 +134,8 @@ Your control plane should now be **Ready**.
 On each worker node, use the join command from step 4. Example:
 ```bash
 kubeadm join 192.168.182.131:6443 --token <your-token>   --discovery-token-ca-cert-hash sha256:<your-hash>
-Final Notes
+
+---
 ## Breif for the project
 In this project, we used Kubeadm to set up a Kubernetes cluster on CentOS from scratch, giving hands-on experience with node management, networking, and deploying applications.
 
@@ -150,4 +151,4 @@ Google GKE
 
 With these cloud-managed options, you won’t need to manually set up master or worker nodes and can focus on deploying applications and managing resources.
 
-
+---
